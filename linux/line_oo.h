@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string>
 #include <string.h>
+#include <map>
 #include <math.h>
 #include <pthread.h>
 #include <gsl/gsl_rng.h>
@@ -23,7 +24,7 @@ using namespace std;
 typedef float real;                     // Precision of float numbers
 const int hash_table_size = 30000000;   // better be at least several times larger than num_vertices
 const int neg_table_size = 1e8;         // better be at least several times larger than num_edges
-const real LOG_MIN = 1e-8;              // Smoother for log
+const double LOG_MIN = 1e-15;              // Smoother for log
 #define SIGMOID_BOUND 6
 const int sigmoid_table_size = 1000;
 #define MAX_STRING 2000
@@ -334,7 +335,10 @@ class Sigmoid {
     sigmoid_table = (real *)malloc((sigmoid_table_size + 1) * sizeof(real));
     for (int k = 0; k != sigmoid_table_size; k++) {
       x = 2 * SIGMOID_BOUND * k / sigmoid_table_size - SIGMOID_BOUND;
-      sigmoid_table[k] = 1 / (1 + exp(-x));
+      real val = 1 / (1 + exp(-x));
+      val = val >= 1.? 1.: val;
+      val = val <= 0.? 0.: val;
+      sigmoid_table[k] = val;
     }
   }
 
@@ -350,6 +354,24 @@ class Sigmoid {
     return sigmoid_table[k];
   }
 };
+
+inline float fast_log2 (float val) {
+  // assert(val >= 0.); 
+  int * const    exp_ptr = reinterpret_cast <int *> (&val);
+  int            x = *exp_ptr;
+  const int      log_2 = ((x >> 23) & 255) - 128;
+  x &= ~(255 << 23);
+  x += 127 << 23;
+  *exp_ptr = x;
+
+  val = ((-1.0f/3) * val + 2) * val - 2.0f/3;   // (1)
+
+  return (val + log_2);
+} 
+
+inline float fast_log (const float &val) {
+  return (fast_log2 (val) * 0.69314718f);
+}
 
 class EmbeddingModel {
   int                     dim;
@@ -382,6 +404,7 @@ class EmbeddingModel {
   /* Initialize the vertex embedding and the context embedding */
   void init_vector() {
     long long a, b;
+    srand(time(NULL));
 
     a = posix_memalign((void **)&emb_vertex, 128, (long long)num_vertices * dim * sizeof(real));
     if (emb_vertex == NULL) { printf("Error: memory allocation failed\n"); exit(1); }
@@ -396,13 +419,14 @@ class EmbeddingModel {
 
   /* Update embeddings & return likelihood */
   real update(real *vec_u, real *vec_v, real *vec_error, int label) {
-    real x = 0, g;
+    real x = 0, f, g;
     for (int c = 0; c != dim; c++) x += vec_u[c] * vec_v[c];
-    g = (label - (*sigmoid)(x)) * rho;
+    f = (*sigmoid)(x);
+    g = (label - f) * rho;
     for (int c = 0; c != dim; c++) vec_error[c] += g * vec_v[c];
     for (int c = 0; c != dim; c++) vec_v[c] += g * vec_u[c];
 
-    return label > 0? log(1-g+LOG_MIN): log(1+g+LOG_MIN);
+    return label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN) / num_negative;
   }
 
   static void *train_thread_helper(void* context) {
@@ -514,6 +538,7 @@ class EmbeddingModel {
   }
 
   void save(string embedding_file, bool is_binary) {
+    printf("[INFO] saving embedding to file..\n");
     FILE *fo = fopen(embedding_file.c_str(), "wb");
     fprintf(fo, "%d %d\n", num_vertices, dim);
     for (int a = 0; a < num_vertices; a++) {
@@ -523,5 +548,37 @@ class EmbeddingModel {
       fprintf(fo, "\n");
     }
     fclose(fo);
+  }
+
+  void load(string embedding_file, bool is_binary) {
+    printf("[INFO] loading embedding from file..\n");
+
+    char _name[MAX_STRING];
+    int _num_vertices, _dim;
+    map<string, int> name2vid;
+    for (int a = 0; a < num_vertices; a++) {
+      string name(vertex[a].name);
+      name2vid[name] = a;
+    }
+
+    FILE *fi = fopen(embedding_file.c_str(), "rb");
+    fscanf(fi, "%d %d\n", &_num_vertices, &_dim);
+    assert(_num_vertices == num_vertices);
+    assert(_dim == dim);
+    for (int a = 0; a < num_vertices; a++) {
+      fscanf(fi, "%s", _name);
+      int v = name2vid[_name];
+      assert(strcmp(vertex[v].name, _name) == 0);
+      _name[0] = fgetc(fi);
+      if (is_binary) {
+        for (int b = 0; b < dim; b++)
+          fread(&emb_vertex[v * dim + b], sizeof(real), 1, fi);
+      } else {
+        printf("[ERROR] loading non-binary embedding file not implemented.\n");
+        exit(0);
+      }
+      fscanf(fi, "\n");
+    }
+    fclose(fi);
   }
 };

@@ -1,7 +1,7 @@
 
 #include "./line_oo.h"
 
-string network_file, embedding_file;
+string network_file, embedding_infile, embedding_outfile;
 int is_binary = 0, num_threads = 1, order = 2, dim = 100, num_negative = 5;
 long long total_samples = 1;
 real init_rho = 0.025;
@@ -22,8 +22,10 @@ void train() {
   EdgeSampler edge_sampler = EdgeSampler(data_helper.get_edge_weight(),
                                          data_helper.get_num_edges());
   EmbeddingModel model = EmbeddingModel(&data_helper, &node_sampler, &edge_sampler, order, dim);
+  if (embedding_infile.size() > 0)
+    model.load(embedding_infile, is_binary);
   model.train(num_threads, num_negative, total_samples, init_rho);
-  model.save(embedding_file, is_binary);
+  model.save(embedding_outfile, is_binary);
 }
 
 int arg_pos(char *str, int argc, char **argv) {
@@ -67,7 +69,8 @@ int main(int argc, char **argv) {
     return 0;
   }
   if ((i = arg_pos((char *)"-train", argc, argv)) > 0) network_file = string(argv[i + 1]);
-  if ((i = arg_pos((char *)"-output", argc, argv)) > 0) embedding_file = string(argv[i + 1]);
+  if ((i = arg_pos((char *)"-input", argc, argv)) > 0) embedding_infile = string(argv[i + 1]);
+  if ((i = arg_pos((char *)"-output", argc, argv)) > 0) embedding_outfile = string(argv[i + 1]);
   if ((i = arg_pos((char *)"-binary", argc, argv)) > 0) is_binary = atoi(argv[i + 1]);
   if ((i = arg_pos((char *)"-size", argc, argv)) > 0) dim = atoi(argv[i + 1]);
   if ((i = arg_pos((char *)"-order", argc, argv)) > 0) order = atoi(argv[i + 1]);

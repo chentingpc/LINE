@@ -30,7 +30,7 @@ const int neg_table_size = 1e8;
 const int sigmoid_table_size = 1000;
 
 typedef float real;                   // Precision of float numbers
-const real LOG_MIN = 1e-8;            // Smoother for log
+const double LOG_MIN = 1e-15;            // Smoother for log
 
 struct ClassVertex {
   double degree;
@@ -291,16 +291,37 @@ int Rand(unsigned long long &seed)
   return (seed >> 16) % neg_table_size;
 }
 
+inline float fast_log2 (float val)
+{
+  // assert(val >= 0.); 
+  int * const    exp_ptr = reinterpret_cast <int *> (&val);
+  int            x = *exp_ptr;
+  const int      log_2 = ((x >> 23) & 255) - 128;
+  x &= ~(255 << 23);
+  x += 127 << 23;
+  *exp_ptr = x;
+
+  val = ((-1.0f/3) * val + 2) * val - 2.0f/3;   // (1)
+
+  return (val + log_2);
+} 
+
+inline float fast_log (const float &val)
+{
+  return (fast_log2 (val) * 0.69314718f);
+}
+
 /* Update embeddings & return likelihood */
 real Update(real *vec_u, real *vec_v, real *vec_error, int label)
 {
-  real x = 0, g;
+  real x = 0, f, g;
   for (int c = 0; c != dim; c++) x += vec_u[c] * vec_v[c];
-  g = (label - FastSigmoid(x)) * rho;
+  f = FastSigmoid(x);
+  g = (label - f) * rho;
   for (int c = 0; c != dim; c++) vec_error[c] += g * vec_v[c];
   for (int c = 0; c != dim; c++) vec_v[c] += g * vec_u[c];
 
-  return label > 0? log(1-g+LOG_MIN): log(1+g+LOG_MIN);
+  real a = label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN) / num_negative;
 }
 
 void *TrainLINEThread(void *id)
@@ -320,7 +341,7 @@ void *TrainLINEThread(void *id)
     {
       current_sample_count += count - last_count;
       last_count = count;
-      printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.9lf", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100, ll / ll_count);
+      printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.3lf", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100, ll / ll_count);
       fflush(stdout);
       rho = init_rho * (1 - current_sample_count / (real)(total_samples + 1));
       if (rho < init_rho * 0.0001) rho = init_rho * 0.0001;
