@@ -1,3 +1,7 @@
+```
+I have made some adjustment of the code in this fork. Till now they are minor.
+```
+
 # LINE: Large-scale information network embedding
 
 ##Introduction
