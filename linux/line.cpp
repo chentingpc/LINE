@@ -309,7 +309,7 @@ void *TrainLINEThread(void *id)
   long long count = 0, last_count = 0, ll_count = 0, curedge;
   unsigned long long seed = (long long)id;
   real *vec_error = (real *)calloc(dim, sizeof(real));
-  real ll = 0.;
+  double ll = 0.;
 
   while (1)
   {
@@ -320,7 +320,7 @@ void *TrainLINEThread(void *id)
     {
       current_sample_count += count - last_count;
       last_count = count;
-      printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.3lf", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100, ll / ll_count);
+      printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.9lf", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100, ll / ll_count);
       fflush(stdout);
       rho = init_rho * (1 - current_sample_count / (real)(total_samples + 1));
       if (rho < init_rho * 0.0001) rho = init_rho * 0.0001;
