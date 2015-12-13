@@ -411,7 +411,8 @@ void TrainLINE() {
   for (a = 0; a < num_threads; a++) pthread_join(pt[a], NULL);
   printf("\n");
   clock_t finish = clock();
-  printf("Total time: %lf\n", (double)(finish - start) / CLOCKS_PER_SEC);
+  double duration = (double)(finish - start) / CLOCKS_PER_SEC;
+  printf("Total CPU time: %lf, real time %.2lf (s)\n", duration, duration / num_threads);
 
   Output();
 }

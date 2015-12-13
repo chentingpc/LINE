@@ -509,7 +509,8 @@ class EmbeddingModel {
     }
     printf("\n");
     clock_t finish = clock();
-    printf("Total time: %lf\n", (double)(finish - start) / CLOCKS_PER_SEC);
+    double duration = (double)(finish - start) / CLOCKS_PER_SEC;
+    printf("Total CPU time: %lf, real time %.2lf (s)\n", duration, duration / num_threads);
   }
 
   void save(string embedding_file, bool is_binary) {
