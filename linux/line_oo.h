@@ -359,7 +359,7 @@ class EmbeddingModel {
   real                    init_rho;
   real                    rho;
   long long               total_samples;
-  int                     current_sample_count;
+  long long               current_sample_count;
   int                     num_threads;
 
   struct Context {

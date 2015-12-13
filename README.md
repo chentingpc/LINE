@@ -1,5 +1,7 @@
 ```
-I have made some adjustments of the code in this fork. Such as printing out log likelihood during training.
+I have made some adjustments of the original code in this fork. Such as printing out log likelihood during training.
+
+I also refactorized the code with OOP (in line_oo).
 ```
 
 # LINE: Large-scale information network embedding
