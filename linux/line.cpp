@@ -29,7 +29,8 @@ const int hash_table_size = 30000000;
 const int neg_table_size = 1e8;
 const int sigmoid_table_size = 1000;
 
-typedef float real;                    // Precision of float numbers
+typedef float real;                   // Precision of float numbers
+const real LOG_MIN = 1e-8;            // Smoother for log
 
 struct ClassVertex {
   double degree;
@@ -290,22 +291,25 @@ int Rand(unsigned long long &seed)
   return (seed >> 16) % neg_table_size;
 }
 
-/* Update embeddings */
-void Update(real *vec_u, real *vec_v, real *vec_error, int label)
+/* Update embeddings & return likelihood */
+real Update(real *vec_u, real *vec_v, real *vec_error, int label)
 {
   real x = 0, g;
   for (int c = 0; c != dim; c++) x += vec_u[c] * vec_v[c];
   g = (label - FastSigmoid(x)) * rho;
   for (int c = 0; c != dim; c++) vec_error[c] += g * vec_v[c];
   for (int c = 0; c != dim; c++) vec_v[c] += g * vec_u[c];
+
+  return label > 0? log(1-g+LOG_MIN): log(1+g+LOG_MIN);
 }
 
 void *TrainLINEThread(void *id)
 {
   long long u, v, lu, lv, target, label;
-  long long count = 0, last_count = 0, curedge;
+  long long count = 0, last_count = 0, ll_count = 0, curedge;
   unsigned long long seed = (long long)id;
   real *vec_error = (real *)calloc(dim, sizeof(real));
+  real ll = 0.;
 
   while (1)
   {
@@ -316,10 +320,13 @@ void *TrainLINEThread(void *id)
     {
       current_sample_count += count - last_count;
       last_count = count;
-      printf("%cRho: %f  Progress: %.3lf%%", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100);
+      printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.3lf", 13, rho, (real)current_sample_count / (real)(total_samples + 1) * 100, ll / ll_count);
       fflush(stdout);
       rho = init_rho * (1 - current_sample_count / (real)(total_samples + 1));
       if (rho < init_rho * 0.0001) rho = init_rho * 0.0001;
+
+      ll = 0.;
+      ll_count = 0;
     }
 
     curedge = SampleAnEdge(gsl_rng_uniform(gsl_r), gsl_rng_uniform(gsl_r));
@@ -343,12 +350,13 @@ void *TrainLINEThread(void *id)
         label = 0;
       }
       lv = target * dim;
-      if (order == 1) Update(&emb_vertex[lu], &emb_vertex[lv], vec_error, label);
-      if (order == 2) Update(&emb_vertex[lu], &emb_context[lv], vec_error, label);
+      if (order == 1) ll += Update(&emb_vertex[lu], &emb_vertex[lv], vec_error, label);
+      if (order == 2) ll += Update(&emb_vertex[lu], &emb_context[lv], vec_error, label);
     }
     for (int c = 0; c != dim; c++) emb_vertex[c + lu] += vec_error[c];
 
     count++;
+    ll_count++;
   }
   free(vec_error);
   pthread_exit(NULL);
