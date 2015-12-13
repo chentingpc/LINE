@@ -321,7 +321,7 @@ real Update(real *vec_u, real *vec_v, real *vec_error, int label)
   for (int c = 0; c != dim; c++) vec_error[c] += g * vec_v[c];
   for (int c = 0; c != dim; c++) vec_v[c] += g * vec_u[c];
 
-  real a = label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN) / num_negative;
+  return label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN) / num_negative;
 }
 
 void *TrainLINEThread(void *id)
