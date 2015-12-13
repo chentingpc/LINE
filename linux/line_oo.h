@@ -14,17 +14,18 @@
 #include <math.h>
 #include <pthread.h>
 #include <gsl/gsl_rng.h>
+#include <cassert>
 
 using namespace std;
 
-// ?? debug
-#define NEG_SAMPLING_POWER 0.75
-const int hash_table_size = 30000000;
-const int neg_table_size = 1e8;
+#define NEG_SAMPLING_POWER 0.75         // unigram downweighted
 
-
-typedef float real;                   // Precision of float numbers
-const real LOG_MIN = 1e-8;            // Smoother for log
+typedef float real;                     // Precision of float numbers
+const int hash_table_size = 30000000;   // better be at least several times larger than num_vertices
+const int neg_table_size = 1e8;         // better be at least several times larger than num_edges
+const real LOG_MIN = 1e-8;              // Smoother for log
+#define SIGMOID_BOUND 6
+const int sigmoid_table_size = 1000;
 #define MAX_STRING 2000
 
 struct Vertex {
@@ -157,6 +158,9 @@ class DataHelper {
       num_edges(0) {
     init_hash_table();
     read_data(network_file);
+
+    assert(hash_table_size > 10 * num_vertices);  // probably should set a bigger hash_table_size
+    assert(neg_table_size > 2 * num_edges);       // probably should set a bigger neg_table_size
   }
 
   int get_num_vertices() {
@@ -315,16 +319,13 @@ class NodeSampler {
   }
 
   /* Sample negative vertex samples according to vertex degrees */
-  long long sample(unsigned long long seed = 0) {
+  long long sample(unsigned long long &seed) {
     return neg_table[Rand(seed)];
   };
 };
 
 
 /* Fastly compute sigmoid function */
-#define SIGMOID_BOUND 6
-const int sigmoid_table_size = 1000;
-
 class Sigmoid {
   real *sigmoid_table;
 
@@ -360,6 +361,11 @@ class EmbeddingModel {
   long long               total_samples;
   int                     current_sample_count;
   int                     num_threads;
+
+  struct Context {
+    class EmbeddingModel *model_ptr;
+    int id;
+  };
 
   const struct Vertex     *vertex;
   const int               *edge_source_id;
@@ -399,21 +405,22 @@ class EmbeddingModel {
     return label > 0? log(1-g+LOG_MIN): log(1+g+LOG_MIN);
   }
 
-  static void *static_thread_entry(void* id) {
-      EmbeddingModel* p = static_cast<EmbeddingModel*>(id);
-      return p->train_thread(id);
+  static void *train_thread_helper(void* context) {
+      struct Context *c = (Context *)context;
+      EmbeddingModel* p = static_cast<EmbeddingModel*>(c->model_ptr);
+      p->train_thread(c->id);
   }
 
-  void *train_thread(void *id) {
+  void train_thread(long long id) {
     long long u, v, lu, lv, target, label;
     long long count = 0, last_count = 0, ll_count = 0, curedge;
-    unsigned long long seed = 0;//(long long)id; // debug
+    unsigned long long seed = (long long)id;
     real *vec_error = (real *)calloc(dim, sizeof(real));
     double ll = 0.;
     while (1) {
       if (count > total_samples / num_threads + 2) break;
 
-      if (count - last_count>10000) {
+      if (count - last_count > 10000) {
         current_sample_count += count - last_count;
         last_count = count;
         printf("%cRho: %f  Progress: %.3lf%%, LogLikelihood %.9lf", 13, rho,
@@ -469,6 +476,10 @@ class EmbeddingModel {
     sigmoid = new Sigmoid();
     edge_source_id = data_helper->get_edge_source_id();
     edge_target_id = data_helper->get_edge_target_id();
+
+    num_vertices = data_helper->get_num_vertices();
+    vertex = data_helper->get_vertex();
+
     init_vector();
   }
 
@@ -480,14 +491,22 @@ class EmbeddingModel {
     this->num_negative = num_negative;
     this->total_samples = total_samples;
     this->init_rho = init_rho;
-    pthread_t *pt = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
 
+    pthread_t *pt = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
     clock_t start = clock();
     printf("--------------------------------\n");
     long long f = 0;
-    //train_thread(&f); // debug
-    for (a = 0; a < num_threads; a++) pthread_create(&pt[a], NULL, static_thread_entry, (void *)a);
-    for (a = 0; a < num_threads; a++) pthread_join(pt[a], NULL);
+    struct Context *context[num_threads];
+    for (a = 0; a < num_threads; a++) {
+      context[a] = new Context;
+      context[a]->model_ptr = this;
+      context[a]->id = a;
+      pthread_create(&pt[a], NULL, train_thread_helper, (void *)(context[a]));
+    }
+    for (a = 0; a < num_threads; a++) {
+      pthread_join(pt[a], NULL);
+      free(context[a]);
+    }
     printf("\n");
     clock_t finish = clock();
     printf("Total time: %lf\n", (double)(finish - start) / CLOCKS_PER_SEC);

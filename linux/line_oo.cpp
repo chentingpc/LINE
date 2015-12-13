@@ -9,25 +9,20 @@ real init_rho = 0.025;
 void train() {
   printf("--------------------------------\n");
   printf("Order: %d\n", order);
+  printf("Threads: %d\n", num_threads);
   printf("Samples: %lldM\n", total_samples / 1000000);
   printf("Negative: %d\n", num_negative);
   printf("Dimension: %d\n", dim);
   printf("Initial rho: %lf\n", init_rho);
   printf("--------------------------------\n");
 
-printf("sse\n" );
   DataHelper data_helper = DataHelper(network_file);
-  printf("ss\n");
   NodeSampler node_sampler = NodeSampler(data_helper.get_vertex(),
                                          data_helper.get_num_vertices());
-  printf("aa\n");
   EdgeSampler edge_sampler = EdgeSampler(data_helper.get_edge_weight(),
                                          data_helper.get_num_edges());
-                                         printf("dsf\n");
   EmbeddingModel model = EmbeddingModel(&data_helper, &node_sampler, &edge_sampler, order, dim);
-  printf("af\n");
   model.train(num_threads, num_negative, total_samples, init_rho);
-  printf("df\n" );
   model.save(embedding_file, is_binary);
 }
 
