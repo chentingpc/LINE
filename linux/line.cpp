@@ -30,6 +30,8 @@ const int neg_table_size = 1e8;
 const int sigmoid_table_size = 1000;
 
 typedef float real;                   // Precision of float numbers
+typedef long long int64;
+typedef unsigned long long uint64;
 const double LOG_MIN = 1e-15;            // Smoother for log
 
 struct ClassVertex {
@@ -42,7 +44,7 @@ struct ClassVertex *vertex;
 int is_binary = 0, num_threads = 1, order = 2, dim = 100, num_negative = 5;
 int *vertex_hash_table, *neg_table;
 int max_num_vertices = 1000, num_vertices = 0;
-long long total_samples = 1, current_sample_count = 0, num_edges = 0;
+int64 total_samples = 1, current_sample_count = 0, num_edges = 0;
 real init_rho = 0.025, rho;
 real *emb_vertex, *emb_context, *sigmoid_table;
 
@@ -50,7 +52,7 @@ int *edge_source_id, *edge_target_id;
 double *edge_weight;
 
 // Parameters for edge sampling
-long long *alias;
+int64 *alias;
 double *prob;
 
 const gsl_rng_type * gsl_T;
@@ -170,7 +172,7 @@ void ReadData()
 /* The alias sampling algorithm, which is used to sample an edge in O(1) time. */
 void InitAliasTable()
 {
-  alias = (long long *)malloc(num_edges*sizeof(long long));
+  alias = (int64 *)malloc(num_edges*sizeof(int64));
   prob = (double *)malloc(num_edges*sizeof(double));
   if (alias == NULL || prob == NULL)
   {
@@ -179,8 +181,8 @@ void InitAliasTable()
   }
 
   double *norm_prob = (double*)malloc(num_edges*sizeof(double));
-  long long *large_block = (long long*)malloc(num_edges*sizeof(long long));
-  long long *small_block = (long long*)malloc(num_edges*sizeof(long long));
+  int64 *large_block = (int64*)malloc(num_edges*sizeof(int64));
+  int64 *small_block = (int64*)malloc(num_edges*sizeof(int64));
   if (norm_prob == NULL || large_block == NULL || small_block == NULL)
   {
     printf("Error: memory allocation failed!\n");
@@ -188,13 +190,13 @@ void InitAliasTable()
   }
 
   double sum = 0;
-  long long cur_small_block, cur_large_block;
-  long long num_small_block = 0, num_large_block = 0;
+  int64 cur_small_block, cur_large_block;
+  int64 num_small_block = 0, num_large_block = 0;
 
-  for (long long k = 0; k != num_edges; k++) sum += edge_weight[k];
-  for (long long k = 0; k != num_edges; k++) norm_prob[k] = edge_weight[k] * num_edges / sum;
+  for (int64 k = 0; k != num_edges; k++) sum += edge_weight[k];
+  for (int64 k = 0; k != num_edges; k++) norm_prob[k] = edge_weight[k] * num_edges / sum;
 
-  for (long long k = num_edges - 1; k >= 0; k--)
+  for (int64 k = num_edges - 1; k >= 0; k--)
   {
     if (norm_prob[k]<1)
       small_block[num_small_block++] = k;
@@ -223,23 +225,23 @@ void InitAliasTable()
   free(large_block);
 }
 
-long long SampleAnEdge(double rand_value1, double rand_value2)
+int64 SampleAnEdge(double rand_value1, double rand_value2)
 {
-  long long k = (long long)num_edges * rand_value1;
+  int64 k = (int64)num_edges * rand_value1;
   return rand_value2 < prob[k] ? k : alias[k];
 }
 
 /* Initialize the vertex embedding and the context embedding */
 void InitVector()
 {
-  long long a, b;
+  int64 a, b;
 
-  a = posix_memalign((void **)&emb_vertex, 128, (long long)num_vertices * dim * sizeof(real));
+  a = posix_memalign((void **)&emb_vertex, 128, (int64)num_vertices * dim * sizeof(real));
   if (emb_vertex == NULL) { printf("Error: memory allocation failed\n"); exit(1); }
   for (b = 0; b < dim; b++) for (a = 0; a < num_vertices; a++)
     emb_vertex[a * dim + b] = (rand() / (real)RAND_MAX - 0.5) / dim;
 
-  a = posix_memalign((void **)&emb_context, 128, (long long)num_vertices * dim * sizeof(real));
+  a = posix_memalign((void **)&emb_context, 128, (int64)num_vertices * dim * sizeof(real));
   if (emb_context == NULL) { printf("Error: memory allocation failed\n"); exit(1); }
   for (b = 0; b < dim; b++) for (a = 0; a < num_vertices; a++)
     emb_context[a * dim + b] = 0;
@@ -285,7 +287,7 @@ real FastSigmoid(real x)
 }
 
 /* Fastly generate a random integer */
-int Rand(unsigned long long &seed)
+int Rand(uint64 &seed)
 {
   seed = seed * 25214903917 + 11;
   return (seed >> 16) % neg_table_size;
@@ -326,9 +328,9 @@ real Update(real *vec_u, real *vec_v, real *vec_error, int label)
 
 void *TrainLINEThread(void *id)
 {
-  long long u, v, lu, lv, target, label;
-  long long count = 0, last_count = 0, ll_count = 0, curedge;
-  unsigned long long seed = (long long)id;
+  int64 u, v, lu, lv, target, label;
+  int64 count = 0, last_count = 0, ll_count = 0, curedge;
+  uint64 seed = (int64)id;
   real *vec_error = (real *)calloc(dim, sizeof(real));
   double ll = 0.;
 

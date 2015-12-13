@@ -22,6 +22,8 @@ using namespace std;
 #define NEG_SAMPLING_POWER 0.75         // unigram downweighted
 
 typedef float real;                     // Precision of float numbers
+typedef long long int64;
+typedef unsigned long long uint64;
 const int hash_table_size = 30000000;   // better be at least several times larger than num_vertices
 const int neg_table_size = 1e8;         // better be at least several times larger than num_edges
 const double LOG_MIN = 1e-15;              // Smoother for log
@@ -43,7 +45,7 @@ class DataHelper {
   int                     *edge_target_id;
 
   int                     num_vertices;
-  long long               num_edges;
+  int64                   num_edges;
   int                     max_num_vertices;
 
   /* Build a hash table, mapping each vertex name to a unique vertex id */
@@ -128,7 +130,7 @@ class DataHelper {
 
     fin = fopen(network_file.c_str(), "rb");
     num_vertices = 0;
-    for (long long k = 0; k != num_edges; k++) {
+    for (int64 k = 0; k != num_edges; k++) {
       fscanf(fin, "%s %s %lf", name_v1, name_v2, &weight);
 
       if (k % 10000 == 0) {
@@ -213,16 +215,16 @@ class GSLRandUniform {
 
 class EdgeSampler {
   const double            *edge_weight;
-  const long long         num_edges;
+  const int64             num_edges;
 
   GSLRandUniform          gsl_rand;
 
-  long long               *alias;
+  int64                   *alias;
   double                  *prob;
 
   /* The alias sampling algorithm, which is used to sample an edge in O(1) time. */
   void init_alias_table() {
-    alias = (long long *)malloc(num_edges*sizeof(long long));
+    alias = (int64 *)malloc(num_edges*sizeof(int64));
     prob = (double *)malloc(num_edges*sizeof(double));
     if (alias == NULL || prob == NULL) {
       printf("Error: memory allocation failed!\n");
@@ -230,21 +232,21 @@ class EdgeSampler {
     }
 
     double *norm_prob = (double*)malloc(num_edges*sizeof(double));
-    long long *large_block = (long long*)malloc(num_edges*sizeof(long long));
-    long long *small_block = (long long*)malloc(num_edges*sizeof(long long));
+    int64 *large_block = (int64*)malloc(num_edges*sizeof(int64));
+    int64 *small_block = (int64*)malloc(num_edges*sizeof(int64));
     if (norm_prob == NULL || large_block == NULL || small_block == NULL) {
       printf("Error: memory allocation failed!\n");
       exit(1);
     }
 
     double sum = 0;
-    long long cur_small_block, cur_large_block;
-    long long num_small_block = 0, num_large_block = 0;
+    int64 cur_small_block, cur_large_block;
+    int64 num_small_block = 0, num_large_block = 0;
 
-    for (long long k = 0; k != num_edges; k++) sum += edge_weight[k];
-    for (long long k = 0; k != num_edges; k++) norm_prob[k] = edge_weight[k] * num_edges / sum;
+    for (int64 k = 0; k != num_edges; k++) sum += edge_weight[k];
+    for (int64 k = 0; k != num_edges; k++) norm_prob[k] = edge_weight[k] * num_edges / sum;
 
-    for (long long k = num_edges - 1; k >= 0; k--) {
+    for (int64 k = num_edges - 1; k >= 0; k--) {
       if (norm_prob[k] < 1)
         small_block[num_small_block++] = k;
       else
@@ -272,15 +274,15 @@ class EdgeSampler {
   }
 
  public:
-  explicit EdgeSampler(const double *edge_weight, const long long num_edges) :
+  explicit EdgeSampler(const double *edge_weight, const int64 num_edges) :
       edge_weight(edge_weight),
       num_edges(num_edges) {
     gsl_rand = GSLRandUniform();
     init_alias_table();
   }
 
-  long long sample() {
-    long long k = (long long)num_edges * gsl_rand();
+  int64 sample() {
+    int64 k = (int64)num_edges * gsl_rand();
     return gsl_rand() < prob[k] ? k : alias[k];
   }
 };
@@ -292,7 +294,7 @@ class NodeSampler {
   int                 num_vertices;
 
   /* Fastly generate a random integer */
-  int Rand(unsigned long long &seed) {
+  int Rand(uint64 &seed) {
     seed = seed * 25214903917 + 11;
     return (seed >> 16) % neg_table_size;
   }
@@ -320,7 +322,7 @@ class NodeSampler {
   }
 
   /* Sample negative vertex samples according to vertex degrees */
-  long long sample(unsigned long long &seed) {
+  int64 sample(uint64 &seed) {
     return neg_table[Rand(seed)];
   };
 };
@@ -380,8 +382,8 @@ class EmbeddingModel {
   int                     num_negative;
   real                    init_rho;
   real                    rho;
-  long long               total_samples;
-  long long               current_sample_count;
+  int64                   total_samples;
+  int64                   current_sample_count;
   int                     num_threads;
 
   struct Context {
@@ -403,15 +405,15 @@ class EmbeddingModel {
 
   /* Initialize the vertex embedding and the context embedding */
   void init_vector() {
-    long long a, b;
+    int64 a, b;
     srand(time(NULL));
 
-    a = posix_memalign((void **)&emb_vertex, 128, (long long)num_vertices * dim * sizeof(real));
+    a = posix_memalign((void **)&emb_vertex, 128, (int64)num_vertices * dim * sizeof(real));
     if (emb_vertex == NULL) { printf("Error: memory allocation failed\n"); exit(1); }
     for (b = 0; b < dim; b++) for (a = 0; a < num_vertices; a++)
       emb_vertex[a * dim + b] = (rand() / (real)RAND_MAX - 0.5) / dim;
 
-    a = posix_memalign((void **)&emb_context, 128, (long long)num_vertices * dim * sizeof(real));
+    a = posix_memalign((void **)&emb_context, 128, (int64)num_vertices * dim * sizeof(real));
     if (emb_context == NULL) { printf("Error: memory allocation failed\n"); exit(1); }
     for (b = 0; b < dim; b++) for (a = 0; a < num_vertices; a++)
       emb_context[a * dim + b] = 0;
@@ -435,10 +437,10 @@ class EmbeddingModel {
       p->train_thread(c->id);
   }
 
-  void train_thread(long long id) {
-    long long u, v, lu, lv, target, label;
-    long long count = 0, last_count = 0, ll_count = 0, curedge;
-    unsigned long long seed = (long long)id;
+  void train_thread(int64 id) {
+    int64 u, v, lu, lv, target, label;
+    int64 count = 0, last_count = 0, ll_count = 0, curedge;
+    uint64 seed = (int64)id;
     real *vec_error = (real *)calloc(dim, sizeof(real));
     double ll = 0.;
     while (1) {
@@ -507,7 +509,7 @@ class EmbeddingModel {
     init_vector();
   }
 
-  void train(int num_threads, int num_negative, long long total_samples, real init_rho) {
+  void train(int num_threads, int num_negative, int64 total_samples, real init_rho) {
     long a;
     current_sample_count = 0;
     rho = init_rho;
@@ -519,7 +521,6 @@ class EmbeddingModel {
     pthread_t *pt = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
     clock_t start = clock();
     printf("--------------------------------\n");
-    long long f = 0;
     struct Context *context[num_threads];
     for (a = 0; a < num_threads; a++) {
       context[a] = new Context;

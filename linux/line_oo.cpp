@@ -3,7 +3,7 @@
 
 string network_file, embedding_infile, embedding_outfile;
 int is_binary = 0, num_threads = 1, order = 2, dim = 100, num_negative = 5;
-long long total_samples = 1;
+int64 total_samples = 1;
 real init_rho = 0.025;
 
 void train() {
