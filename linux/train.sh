@@ -20,7 +20,7 @@ if [ ! -e $result_folder ]; then
     mkdir $result_folder
 fi
 
-#./reconstruct -train $data_folder/$data_name.txt -output $data_folder/$data_name\_dense.txt -depth 2 -k-max 1000
+./reconstruct -train $data_folder/$data_name.txt -output $data_folder/$data_name\_dense.txt -depth 2 -k-max 1000
 ./line -train $data_folder/$data_name\_dense.txt -output $result_folder/vec_1st_wo_norm.txt -binary 1 -size 128 -order 1 -negative 5 -samples 10000 -threads 6
 ./line -train $data_folder/$data_name\_dense.txt -output $result_folder/vec_2nd_wo_norm.txt -binary 1 -size 128 -order 2 -negative 5 -samples 10000 -threads 6
 ./normalize -input $result_folder/vec_1st_wo_norm.txt -output $result_folder/vec_1st.txt -binary 1

@@ -336,7 +336,7 @@ class Sigmoid {
     real x;
     sigmoid_table = (real *)malloc((sigmoid_table_size + 1) * sizeof(real));
     for (int k = 0; k != sigmoid_table_size; k++) {
-      x = 2 * SIGMOID_BOUND * k / sigmoid_table_size - SIGMOID_BOUND;
+      x = 2.0 * SIGMOID_BOUND * k / sigmoid_table_size - SIGMOID_BOUND;
       real val = 1 / (1 + exp(-x));
       val = val >= 1.? 1.: val;
       val = val <= 0.? 0.: val;
@@ -428,7 +428,7 @@ class EmbeddingModel {
     for (int c = 0; c != dim; c++) vec_error[c] += g * vec_v[c];
     for (int c = 0; c != dim; c++) vec_v[c] += g * vec_u[c];
 
-    return label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN) / num_negative;
+    return label > 0? fast_log(f+LOG_MIN): fast_log(1-f+LOG_MIN);
   }
 
   static void *train_thread_helper(void* context) {
