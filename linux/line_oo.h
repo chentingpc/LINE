@@ -277,7 +277,6 @@ class EdgeSampler {
   explicit EdgeSampler(const double *edge_weight, const int64 num_edges) :
       edge_weight(edge_weight),
       num_edges(num_edges) {
-    gsl_rand = GSLRandUniform();
     init_alias_table();
   }
 
