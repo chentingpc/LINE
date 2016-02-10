@@ -271,7 +271,7 @@ void InitSigmoidTable()
 {
   real x;
   sigmoid_table = (real *)malloc((sigmoid_table_size + 1) * sizeof(real));
-  for (int k = 0; k != sigmoid_table_size; k++)
+  for (int k = 0; k < sigmoid_table_size + 1; k++)
   {
     x = 2.0 * SIGMOID_BOUND * k / sigmoid_table_size - SIGMOID_BOUND;
     sigmoid_table[k] = 1 / (1 + exp(-x));
