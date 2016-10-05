@@ -1,5 +1,5 @@
 ```
-I have made some adjustments of the original code in this fork. Such as printing out log likelihood during training.
+I have made some adjustments of the original code in this fork. Such as printing out log likelihood during training, and some bug fixes (see commits).
 
 I also refactorized the code with OOP (in line_oo).
 ```
