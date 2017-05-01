@@ -92,11 +92,18 @@ void ReadVector()
     ch = fgetc(fi);
     AddVertex(name, k);
     l = k * vector_dim1;
-    for (int c = 0; c != vector_dim1; c++)
-    {
-      fread(&f_num, sizeof(real), 1, fi);
-      vec1[c + l] = (real)f_num;
-    }
+    if (binary)
+      for (int c = 0; c != vector_dim1; c++)
+      {
+        fread(&f_num, sizeof(real), 1, fi);
+        vec1[c + l] = (real)f_num;
+      }
+    else
+      for (int c = 0; c != vector_dim1; c++)
+      {
+        fscanf(fi, "%f%c", &f_num, &ch);
+        vec1[c + l] = (real)f_num;
+      }
   }
   fclose(fi);
 
@@ -114,11 +121,18 @@ void ReadVector()
     int i = SearchHashTable(name);
     if (i == -1) l = num_vertices * vector_dim2;
     else l = i * vector_dim2;
-    for (int c = 0; c != vector_dim2; c++)
-    {
-      fread(&f_num, sizeof(float), 1, fi);
-      vec2[c + l] = (real)f_num;
-    }
+    if (binary)
+      for (int c = 0; c != vector_dim2; c++)
+      {
+        fread(&f_num, sizeof(float), 1, fi);
+        vec2[c + l] = (real)f_num;
+      }
+    else
+      for (int c = 0; c != vector_dim1; c++)
+      {
+        fscanf(fi, "%f%c", &f_num, &ch);
+        vec2[c + l] = (real)f_num;
+      }
   }
   fclose(fi);
 
